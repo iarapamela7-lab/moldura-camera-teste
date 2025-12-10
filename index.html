@@ -92,20 +92,20 @@ document.getElementById("flash").onclick = async ()=>{
 // Virar câmera
 document.getElementById("trocar").onclick = ()=>{ usandoFrontal=!usandoFrontal; iniciarCamera(); }
 
-// Função para preencher canvas 9:16 mantendo proporção (cover)
-function drawVideoCover(){
+// Função que desenha vídeo proporcionalmente sem esticar e cortando excessos
+function drawVideoProporcional(){
     const vw = video.videoWidth;
     const vh = video.videoHeight;
     const cw = canvas.width;
     const ch = canvas.height;
 
-    const scale = Math.max(cw/vw, ch/vh);
+    const scale = Math.max(cw/vw, ch/vh); // cover
     const drawWidth = vw*scale;
     const drawHeight = vh*scale;
-    const drawX = (cw - drawWidth)/2;
+    let drawX = (cw - drawWidth)/2;
     let drawY = (ch - drawHeight)/2;
 
-    // Frontal: ajusta um pouco para mostrar rosto
+    // Ajusta frontal: desloca levemente para mostrar rosto
     if(usandoFrontal) drawY -= drawHeight*0.05;
 
     return { drawX, drawY, drawWidth, drawHeight };
@@ -118,7 +118,7 @@ document.getElementById("foto").onclick = ()=>{
     ctx.fillStyle="#000";
     ctx.fillRect(0,0,canvas.width,canvas.height);
 
-    const { drawX, drawY, drawWidth, drawHeight } = drawVideoCover();
+    const { drawX, drawY, drawWidth, drawHeight } = drawVideoProporcional();
 
     if(usandoFrontal){
         ctx.save();
