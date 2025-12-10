@@ -1,23 +1,61 @@
 <!DOCTYPE html>
-<html>
+<html lang="pt-BR">
 <head>
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Moldura com Câmera</title>
+
 <style>
-  body { margin: 0; overflow: hidden; }
-  #camera { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; }
-  #moldura { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
-  #btns { position: fixed; bottom: 20px; width: 100%; text-align: center; }
-  button { padding: 12px 20px; margin: 5px; font-size: 16px; border-radius: 12px; }
+body {
+    margin: 0;
+    overflow: hidden;
+    background: black;
+}
+#camera-area {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+}
+video {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+#moldura {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+}
+#botoes {
+    position: absolute;
+    bottom: 20px;
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+}
+button {
+    padding: 12px 18px;
+    font-size: 16px;
+    border: none;
+    border-radius: 10px;
+    background: white;
+}
 </style>
+
 </head>
 <body>
 
-<video id="camera" autoplay></video>
-<img id="moldura" src="moldura.png">
+<div id="camera-area">
+    <video id="video" autoplay playsinline></video>
+    <img id="moldura" src="moldura.png">
+</div>
 
-<div id="btns">
-  <button onclick="trocar()">Trocar Câmera</button>
-  <button onclick="capturar()">Salvar Foto</button>
+<div id="botoes">
+    <button onclick="trocarCamera()">Trocar Câmera</button>
+    <button onclick="tirarFoto()">Tirar Foto</button>
 </div>
 
 <canvas id="canvas" style="display:none;"></canvas>
@@ -26,32 +64,40 @@
 let usandoFrontal = true;
 
 async function iniciarCamera() {
-    const modo = usandoFrontal ? "user" : "environment";
-    const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: modo }
-    });
-    document.getElementById("camera").srcObject = stream;
+    const tipo = usandoFrontal ? "user" : "environment";
+
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: tipo }
+        });
+
+        const video = document.getElementById("video");
+        video.srcObject = stream;
+
+    } catch (e) {
+        alert("Erro ao acessar câmera: " + e);
+    }
 }
 
-function trocar() {
+function trocarCamera() {
     usandoFrontal = !usandoFrontal;
     iniciarCamera();
 }
 
-function capturar() {
-    const video = document.getElementById("camera");
-    const canvas = document.getElementById("canvas");
+function tirarFoto() {
+    const video = document.getElementById("video");
     const moldura = document.getElementById("moldura");
+    const canvas = document.getElementById("canvas");
+    const ctx = canvas.getContext("2d");
 
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
 
-    const ctx = canvas.getContext("2d");
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
     ctx.drawImage(moldura, 0, 0, canvas.width, canvas.height);
 
     const link = document.createElement("a");
-    link.download = "foto.png";
+    link.download = "foto-moldura.png";
     link.href = canvas.toDataURL("image/png");
     link.click();
 }
