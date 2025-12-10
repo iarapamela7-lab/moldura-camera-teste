@@ -1,136 +1,204 @@
 <!DOCTYPE html>
 <html lang="pt-br">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Foto com Moldura</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Foto com Moldura</title>
+<style>
+    body {
+        margin: 0;
+        padding: 0;
+        background: #000;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        height: 100vh;
+        overflow: hidden;
+        font-family: Arial, sans-serif;
+    }
 
-    <style>
-        body {
-            margin: 0;
-            padding: 0;
-            background: #000;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            height: 100vh;
-            overflow: hidden;
-            font-family: Arial, sans-serif;
-        }
+    #camera-container {
+        position: relative;
+        width: 100vw;
+        height: 100vh;
+        max-width: 1080px;
+        max-height: 1920px;
+        overflow: hidden;
+        background: #000;
+    }
 
-        #camera-container {
-            position: relative;
-            width: 100vw;
-            height: 100vh;
-            max-width: 1080px;
-            max-height: 1920px;
-            overflow: hidden;
-            background: #000;
-        }
+    video {
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        object-fit: contain; /* mantem proporção sem cortes */
+        background: #000;
+    }
 
-        video {
-            position: absolute;
-            width: 100%;
-            height: 100%;
-            object-fit: cover; /* sem cortes estranhos */
-        }
+    #moldura {
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+        object-fit: contain;
+    }
 
-        #moldura {
-            position: absolute;
-            width: 100%;
-            height: 100%;
-            pointer-events: none;
-            object-fit: contain; /* mantém proporção perfeita */
-        }
+    #botoes {
+        position: fixed;
+        bottom: 20px;
+        display: flex;
+        gap: 15px;
+        z-index: 10;
+    }
 
-        #botoes {
-            position: fixed;
-            bottom: 20px;
-            display: flex;
-            gap: 15px;
-            z-index: 10;
-        }
+    button {
+        padding: 14px 18px;
+        font-size: 22px;
+        border: none;
+        border-radius: 14px;
+        background: rgba(255, 255, 255, 0.2);
+        backdrop-filter: blur(6px);
+        color: white;
+        font-weight: bold;
+        cursor: pointer;
+        transition: 0.2s;
+    }
 
-        button {
-            padding: 14px 18px;
-            font-size: 22px;
-            border: none;
-            border-radius: 14px;
-            background: rgba(255, 255, 255, 0.2);
-            backdrop-filter: blur(6px);
-            color: white;
-            font-weight: bold;
-            cursor: pointer;
-            transition: 0.2s;
-        }
+    button:hover {
+        background: rgba(255, 255, 255, 0.35);
+    }
 
-        button:hover {
-            background: rgba(255, 255, 255, 0.35);
-        }
-    </style>
+    #preview-container {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0,0,0,0.8);
+        display: none;
+        justify-content: center;
+        align-items: center;
+        z-index: 20;
+        flex-direction: column;
+    }
+
+    #preview-container img {
+        max-width: 90%;
+        max-height: 90%;
+        border: 4px solid white;
+        border-radius: 16px;
+    }
+
+    #preview-container button {
+        margin-top: 20px;
+        font-size: 24px;
+    }
+</style>
 </head>
 <body>
 
-    <div id="camera-container">
-        <video id="camera" autoplay playsinline></video>
-        <img id="moldura" src="moldura.png">
-    </div>
+<div id="camera-container">
+    <video id="camera" autoplay playsinline></video>
+    <img id="moldura" src="moldura.png">
+</div>
 
-    <div id="botoes">
-        <button id="trocar">🔄</button>
-        <button id="foto">📷</button>
-        <button id="salvar">💾</button>
-    </div>
+<div id="botoes">
+    <button id="trocar">🔄</button>
+    <button id="foto">📷</button>
+    <button id="salvar">💾</button>
+</div>
 
-    <canvas id="canvas" width="1080" height="1920" style="display:none;"></canvas>
+<div id="preview-container">
+    <img id="preview-img" src="">
+    <button id="fechar-preview">Fechar</button>
+</div>
 
-    <script>
-        const video = document.getElementById("camera");
-        const canvas = document.getElementById("canvas");
-        const ctx = canvas.getContext("2d");
-        const moldura = document.getElementById("moldura");
+<canvas id="canvas" width="1080" height="1920" style="display:none;"></canvas>
 
-        let usandoFrontal = false;
+<script>
+const video = document.getElementById("camera");
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
+const moldura = document.getElementById("moldura");
 
-        function iniciarCamera() {
-            navigator.mediaDevices.getUserMedia({
-                video: { 
-                    facingMode: usandoFrontal ? "user" : "environment",
-                    width: { ideal: 1080 },
-                    height: { ideal: 1920 }
-                }
-            }).then(stream => {
-                video.srcObject = stream;
-            });
+let usandoFrontal = false;
+let streamAtual = null;
+let ultimaFoto = null;
+
+async function iniciarCamera() {
+    if (streamAtual) {
+        streamAtual.getTracks().forEach(track => track.stop());
+    }
+
+    const constraints = {
+        video: { 
+            facingMode: usandoFrontal ? "user" : "environment",
+            width: { ideal: 1080 },
+            height: { ideal: 1920 }
         }
+    };
 
-        iniciarCamera();
+    try {
+        streamAtual = await navigator.mediaDevices.getUserMedia(constraints);
+        video.srcObject = streamAtual;
 
-        document.getElementById("trocar").onclick = () => {
-            usandoFrontal = !usandoFrontal;
-            iniciarCamera();
-        };
+        // Espelha só a pré-visualização da câmera frontal
+        video.style.transform = usandoFrontal ? "scaleX(-1)" : "scaleX(1)";
+    } catch (err) {
+        alert("Não foi possível acessar a câmera: " + err);
+    }
+}
 
-        let ultimaFoto = null;
+iniciarCamera();
 
-        document.getElementById("foto").onclick = () => {
-            ctx.drawImage(video, 0, 0, 1080, 1920);
-            ctx.drawImage(moldura, 0, 0, 1080, 1920);
-            ultimaFoto = canvas.toDataURL("image/png");
-            alert("Foto capturada! Clique no 💾 para salvar.");
-        };
+document.getElementById("trocar").onclick = () => {
+    usandoFrontal = !usandoFrontal;
+    iniciarCamera();
+};
 
-        document.getElementById("salvar").onclick = () => {
-            if (!ultimaFoto) {
-                alert("Tire uma foto antes de salvar!");
-                return;
-            }
+document.getElementById("foto").onclick = () => {
+    // Limpa canvas
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            const a = document.createElement("a");
-            a.href = ultimaFoto;
-            a.download = "foto-com-moldura.png";
-            a.click();
-        };
-    </script>
+    // Desenha vídeo
+    if (usandoFrontal) {
+        ctx.save();
+        ctx.scale(-1, 1);
+        ctx.drawImage(video, -canvas.width, 0, canvas.width, canvas.height);
+        ctx.restore();
+    } else {
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    }
+
+    // Desenha moldura
+    ctx.drawImage(moldura, 0, 0, canvas.width, canvas.height);
+
+    ultimaFoto = canvas.toDataURL("image/png");
+
+    // Mostra preview
+    const preview = document.getElementById("preview-container");
+    const previewImg = document.getElementById("preview-img");
+    previewImg.src = ultimaFoto;
+    preview.style.display = "flex";
+};
+
+// Fechar preview
+document.getElementById("fechar-preview").onclick = () => {
+    document.getElementById("preview-container").style.display = "none";
+};
+
+document.getElementById("salvar").onclick = () => {
+    if (!ultimaFoto) {
+        alert("Tire uma foto antes de salvar!");
+        return;
+    }
+
+    const a = document.createElement("a");
+    a.href = ultimaFoto;
+    a.download = "foto-com-moldura.png";
+    a.click();
+};
+</script>
+
 </body>
 </html>
