@@ -1,3 +1,120 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Foto com Moldura</title>
+<style>
+    body {
+        margin: 0;
+        padding: 0;
+        background: #000;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        height: 100vh;
+        overflow: hidden;
+        font-family: Arial, sans-serif;
+    }
+
+    #camera-container {
+        position: relative;
+        width: 100vw;
+        height: 100vh;
+        max-width: 1080px;
+        max-height: 1920px;
+        overflow: hidden;
+        background: #000;
+    }
+
+    video {
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        object-fit: contain; /* mantém proporção sem cortar */
+        background: #000;
+    }
+
+    #moldura {
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+        object-fit: contain;
+    }
+
+    #botoes {
+        position: fixed;
+        bottom: 20px;
+        display: flex;
+        gap: 15px;
+        z-index: 10;
+    }
+
+    button {
+        padding: 14px 18px;
+        font-size: 22px;
+        border: none;
+        border-radius: 14px;
+        background: rgba(255, 255, 255, 0.2);
+        backdrop-filter: blur(6px);
+        color: white;
+        font-weight: bold;
+        cursor: pointer;
+        transition: 0.2s;
+    }
+
+    button:hover {
+        background: rgba(255, 255, 255, 0.35);
+    }
+
+    #preview-container {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0,0,0,0.8);
+        display: none;
+        justify-content: center;
+        align-items: center;
+        z-index: 20;
+        flex-direction: column;
+    }
+
+    #preview-container img {
+        max-width: 90%;
+        max-height: 90%;
+        border: 4px solid white;
+        border-radius: 16px;
+    }
+
+    #preview-container button {
+        margin-top: 20px;
+        font-size: 24px;
+    }
+</style>
+</head>
+<body>
+
+<div id="camera-container">
+    <video id="camera" autoplay playsinline></video>
+    <img id="moldura" src="moldura.png">
+</div>
+
+<div id="botoes">
+    <button id="trocar">🔄</button>
+    <button id="foto">📷</button>
+    <button id="salvar">💾</button>
+</div>
+
+<div id="preview-container">
+    <img id="preview-img" src="">
+    <button id="fechar-preview">Fechar</button>
+</div>
+
+<canvas id="canvas" width="1080" height="1920" style="display:none;"></canvas>
+
 <script>
 const video = document.getElementById("camera");
 const canvas = document.getElementById("canvas");
@@ -8,6 +125,7 @@ let usandoFrontal = false;
 let streamAtual = null;
 let ultimaFoto = null;
 
+// Inicia câmera
 async function iniciarCamera() {
     if (streamAtual) {
         streamAtual.getTracks().forEach(track => track.stop());
@@ -20,8 +138,6 @@ async function iniciarCamera() {
     try {
         streamAtual = await navigator.mediaDevices.getUserMedia(constraints);
         video.srcObject = streamAtual;
-
-        // Espelhamento da prévia
         video.style.transform = usandoFrontal ? "scaleX(-1)" : "scaleX(1)";
     } catch (err) {
         alert("Não foi possível acessar a câmera: " + err);
@@ -35,50 +151,60 @@ document.getElementById("trocar").onclick = () => {
     iniciarCamera();
 };
 
-document.getElementById("foto").onclick = async () => {
-    // Captura o frame real da câmera
-    const [track] = streamAtual.getVideoTracks();
-    const settings = track.getSettings();
-    const tempCanvas = document.createElement("canvas");
-    tempCanvas.width = settings.width;
-    tempCanvas.height = settings.height;
-    const tempCtx = tempCanvas.getContext("2d");
-
-    // Se frontal, inverte
-    if (usandoFrontal) {
-        tempCtx.save();
-        tempCtx.scale(-1, 1);
-        tempCtx.drawImage(video, -tempCanvas.width, 0, tempCanvas.width, tempCanvas.height);
-        tempCtx.restore();
-    } else {
-        tempCtx.drawImage(video, 0, 0, tempCanvas.width, tempCanvas.height);
-    }
-
-    // Agora redimensiona proporcionalmente para 1080x1920 no canvas principal
+// Captura foto
+document.getElementById("foto").onclick = () => {
+    // Limpa canvas
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    const scale = Math.min(canvas.width / tempCanvas.width, canvas.height / tempCanvas.height);
-    const x = (canvas.width / 2) - (tempCanvas.width / 2) * scale;
-    const y = (canvas.height / 2) - (tempCanvas.height / 2) * scale;
+    // Calcula proporção e posição para não cortar vídeo
+    let videoRatio = video.videoWidth / video.videoHeight;
+    let canvasRatio = canvas.width / canvas.height;
 
-    ctx.drawImage(tempCanvas, 0, 0, tempCanvas.width, tempCanvas.height, x, y, tempCanvas.width * scale, tempCanvas.height * scale);
+    let drawWidth, drawHeight, drawX, drawY;
 
-    // Desenha a moldura
+    if (videoRatio > canvasRatio) {
+        // vídeo mais largo que canvas
+        drawHeight = canvas.height;
+        drawWidth = video.videoWidth * (canvas.height / video.videoHeight);
+        drawX = (canvas.width - drawWidth) / 2;
+        drawY = 0;
+    } else {
+        // vídeo mais alto que canvas
+        drawWidth = canvas.width;
+        drawHeight = video.videoHeight * (canvas.width / video.videoWidth);
+        drawX = 0;
+        drawY = (canvas.height - drawHeight) / 2;
+    }
+
+    // Desenha vídeo (com espelhamento frontal)
+    if (usandoFrontal) {
+        ctx.save();
+        ctx.scale(-1, 1);
+        ctx.drawImage(video, 0, 0, video.videoWidth, video.videoHeight, -canvas.width - drawX, drawY, drawWidth, drawHeight);
+        ctx.restore();
+    } else {
+        ctx.drawImage(video, 0, 0, video.videoWidth, video.videoHeight, drawX, drawY, drawWidth, drawHeight);
+    }
+
+    // Desenha moldura
     ctx.drawImage(moldura, 0, 0, canvas.width, canvas.height);
 
+    // Salva foto
     ultimaFoto = canvas.toDataURL("image/png");
 
-    // Preview
+    // Mostra preview
     const preview = document.getElementById("preview-container");
     const previewImg = document.getElementById("preview-img");
     previewImg.src = ultimaFoto;
     preview.style.display = "flex";
 };
 
+// Fechar preview
 document.getElementById("fechar-preview").onclick = () => {
     document.getElementById("preview-container").style.display = "none";
 };
 
+// Salvar foto
 document.getElementById("salvar").onclick = () => {
     if (!ultimaFoto) {
         alert("Tire uma foto antes de salvar!");
@@ -90,3 +216,6 @@ document.getElementById("salvar").onclick = () => {
     a.click();
 };
 </script>
+
+</body>
+</html>
