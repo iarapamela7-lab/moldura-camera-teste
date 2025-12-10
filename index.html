@@ -1,151 +1,136 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="pt-br">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Câmera com Moldura 9:16</title>
-<style>
-  body {
-    margin: 0;
-    padding: 0;
-    background: linear-gradient(135deg, #5a3be6, #8f6bff);
-    font-family: "Poppins", sans-serif;
-    color: #fff;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: flex-start;
-    height: 100vh;
-  }
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Foto com Moldura</title>
 
-  h2 {
-    margin-top: 20px;
-    font-weight: 600;
-  }
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #000;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+        }
 
-  /* Container 9:16 */
-  .frame-container {
-    position: relative;
-    width: 90vw;
-    max-width: 430px;
-    aspect-ratio: 9 / 16;
-    border-radius: 20px;
-    overflow: hidden;
-    background: #000;
-    margin-top: 20px;
-    box-shadow: 0 8px 25px rgba(0,0,0,0.4);
-  }
+        #camera-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            max-width: 1080px;
+            max-height: 1920px;
+            overflow: hidden;
+            background: #000;
+        }
 
-  video, canvas {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-  }
+        video {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            object-fit: cover; /* sem cortes estranhos */
+        }
 
-  /* Botões modernos */
-  .btns {
-    display: flex;
-    gap: 15px;
-    margin-top: 25px;
-  }
+        #moldura {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            object-fit: contain; /* mantém proporção perfeita */
+        }
 
-  button {
-    background: rgba(255,255,255,0.15);
-    border: 2px solid rgba(255,255,255,0.25);
-    padding: 12px 20px;
-    border-radius: 14px;
-    font-size: 22px;
-    color: white;
-    cursor: pointer;
-    backdrop-filter: blur(8px);
-    transition: 0.2s;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.25);
-  }
+        #botoes {
+            position: fixed;
+            bottom: 20px;
+            display: flex;
+            gap: 15px;
+            z-index: 10;
+        }
 
-  button:hover {
-    background: rgba(255,255,255,0.25);
-    transform: translateY(-3px);
-  }
+        button {
+            padding: 14px 18px;
+            font-size: 22px;
+            border: none;
+            border-radius: 14px;
+            background: rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(6px);
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+            transition: 0.2s;
+        }
 
-  button:active {
-    transform: scale(0.95);
-  }
-</style>
+        button:hover {
+            background: rgba(255, 255, 255, 0.35);
+        }
+    </style>
 </head>
 <body>
 
-<h2>Fotografe com Moldura 9:16</h2>
+    <div id="camera-container">
+        <video id="camera" autoplay playsinline></video>
+        <img id="moldura" src="moldura.png">
+    </div>
 
-<div class="frame-container">
-  <video id="camera" autoplay playsinline></video>
-  <canvas id="canvas"></canvas>
-</div>
+    <div id="botoes">
+        <button id="trocar">🔄</button>
+        <button id="foto">📷</button>
+        <button id="salvar">💾</button>
+    </div>
 
-<div class="btns">
-  <button id="btnTrocar">🔄</button>
-  <button id="btnFoto">📷</button>
-  <button id="btnSalvar">💾</button>
-</div>
+    <canvas id="canvas" width="1080" height="1920" style="display:none;"></canvas>
 
-<script>
-const video = document.getElementById("camera");
-const canvas = document.getElementById("canvas");
-const btnTrocar = document.getElementById("btnTrocar");
-const btnFoto = document.getElementById("btnFoto");
-const btnSalvar = document.getElementById("btnSalvar");
+    <script>
+        const video = document.getElementById("camera");
+        const canvas = document.getElementById("canvas");
+        const ctx = canvas.getContext("2d");
+        const moldura = document.getElementById("moldura");
 
-let usandoFrontal = true;
-let streamAtual;
+        let usandoFrontal = false;
 
-async function iniciarCamera() {
-  if (streamAtual) {
-    streamAtual.getTracks().forEach(t => t.stop());
-  }
+        function iniciarCamera() {
+            navigator.mediaDevices.getUserMedia({
+                video: { 
+                    facingMode: usandoFrontal ? "user" : "environment",
+                    width: { ideal: 1080 },
+                    height: { ideal: 1920 }
+                }
+            }).then(stream => {
+                video.srcObject = stream;
+            });
+        }
 
-  streamAtual = await navigator.mediaDevices.getUserMedia({
-    video: { facingMode: usandoFrontal ? "user" : "environment" }
-  });
+        iniciarCamera();
 
-  video.srcObject = streamAtual;
-}
+        document.getElementById("trocar").onclick = () => {
+            usandoFrontal = !usandoFrontal;
+            iniciarCamera();
+        };
 
-iniciarCamera();
+        let ultimaFoto = null;
 
-btnTrocar.onclick = () => {
-  usandoFrontal = !usandoFrontal;
-  iniciarCamera();
-};
+        document.getElementById("foto").onclick = () => {
+            ctx.drawImage(video, 0, 0, 1080, 1920);
+            ctx.drawImage(moldura, 0, 0, 1080, 1920);
+            ultimaFoto = canvas.toDataURL("image/png");
+            alert("Foto capturada! Clique no 💾 para salvar.");
+        };
 
-btnFoto.onclick = () => {
-  const container = document.querySelector('.frame-container');
-  const width = container.clientWidth;
-  const height = container.clientHeight;
+        document.getElementById("salvar").onclick = () => {
+            if (!ultimaFoto) {
+                alert("Tire uma foto antes de salvar!");
+                return;
+            }
 
-  canvas.width = width;
-  canvas.height = height;
-
-  const ctx = canvas.getContext("2d");
-
-  ctx.drawImage(video, 0, 0, width, height);
-
-  const moldura = new Image();
-  moldura.src = "moldura.png";
-
-  moldura.onload = () => {
-    ctx.drawImage(moldura, 0, 0, width, height);
-  };
-};
-
-btnSalvar.onclick = () => {
-  const link = document.createElement("a");
-  link.download = "foto-moldura.png";
-  link.href = canvas.toDataURL("image/png");
-  link.click();
-};
-</script>
-
+            const a = document.createElement("a");
+            a.href = ultimaFoto;
+            a.download = "foto-com-moldura.png";
+            a.click();
+        };
+    </script>
 </body>
 </html>
