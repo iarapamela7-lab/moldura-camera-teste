@@ -9,28 +9,20 @@ body {
     margin: 0;
     padding: 0;
     background: #000;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    height: 100vh;
-    overflow: hidden;
     font-family: Arial, sans-serif;
+    overflow: hidden;
 }
 #camera-container {
     position: relative;
     width: 100vw;
     height: 100vh;
-    max-width: 1080px;
-    max-height: 1920px;
-    overflow: hidden;
     background: #000;
 }
 video {
     position: absolute;
     width: 100%;
     height: 100%;
-    object-fit: cover; /* preenche sem distorcer */
-    background: #000;
+    object-fit: cover;
 }
 #moldura {
     position: absolute;
@@ -41,16 +33,18 @@ video {
 }
 #botoes {
     position: fixed;
-    bottom: 20px;
+    bottom: 30px;
+    width: 100%;
     display: flex;
-    gap: 15px;
+    justify-content: center;
+    gap: 25px;
     z-index: 10;
 }
 button {
     padding: 14px 18px;
-    font-size: 22px;
+    font-size: 28px;
     border: none;
-    border-radius: 14px;
+    border-radius: 50%;
     background: rgba(255, 255, 255, 0.2);
     backdrop-filter: blur(6px);
     color: white;
@@ -67,7 +61,7 @@ button:hover {
     left: 0;
     width: 100%;
     height: 100%;
-    background: rgba(0,0,0,0.8);
+    background: rgba(0,0,0,0.95);
     display: none;
     justify-content: center;
     align-items: center;
@@ -76,13 +70,19 @@ button:hover {
 }
 #preview-container img {
     max-width: 90%;
-    max-height: 90%;
+    max-height: 80%;
     border: 4px solid white;
     border-radius: 16px;
+    margin-bottom: 20px;
 }
-#preview-container button {
-    margin-top: 20px;
-    font-size: 24px;
+#preview-buttons {
+    display: flex;
+    gap: 30px;
+}
+#preview-buttons button {
+    border-radius: 14px;
+    padding: 12px 20px;
+    font-size: 20px;
 }
 </style>
 </head>
@@ -94,14 +94,17 @@ button:hover {
 </div>
 
 <div id="botoes">
+    <button id="flash">⚡❌</button>
     <button id="trocar">🔄</button>
     <button id="foto">📷</button>
-    <button id="salvar">💾</button>
 </div>
 
 <div id="preview-container">
     <img id="preview-img" src="">
-    <button id="fechar-preview">Fechar</button>
+    <div id="preview-buttons">
+        <button id="tirar-nova">Tirar outra</button>
+        <button id="salvar-preview">Salvar</button>
+    </div>
 </div>
 
 <canvas id="canvas" width="1080" height="1920" style="display:none;"></canvas>
@@ -111,110 +114,120 @@ const video = document.getElementById("camera");
 const canvas = document.getElementById("canvas");
 const ctx = canvas.getContext("2d");
 const moldura = document.getElementById("moldura");
+const preview = document.getElementById("preview-container");
+const previewImg = document.getElementById("preview-img");
 
 let usandoFrontal = false;
 let streamAtual = null;
 let ultimaFoto = null;
+let flashAtivo = false;
+let track = null;
 
-// Função para iniciar câmera
+// Inicia câmera
 async function iniciarCamera() {
     if (streamAtual) {
-        streamAtual.getTracks().forEach(track => track.stop());
+        streamAtual.getTracks().forEach(t => t.stop());
     }
 
     const constraints = {
-        video: {
-            facingMode: usandoFrontal ? "user" : { exact: "environment" },
-            width: { ideal: 1920 },
-            height: { ideal: 1080 }
-        },
+        video: { facingMode: usandoFrontal ? "user" : "environment" },
         audio: false
     };
 
     try {
         streamAtual = await navigator.mediaDevices.getUserMedia(constraints);
         video.srcObject = streamAtual;
+        track = streamAtual.getVideoTracks()[0];
         video.style.transform = usandoFrontal ? "scaleX(-1)" : "scaleX(1)";
     } catch (err) {
-        alert("Não foi possível acessar a câmera traseira, tentando padrão...");
-        // fallback simples para mobile que não suporta exact
-        streamAtual = await navigator.mediaDevices.getUserMedia({ video: true });
-        video.srcObject = streamAtual;
-        video.style.transform = usandoFrontal ? "scaleX(-1)" : "scaleX(1)";
+        alert("Erro ao acessar câmera: " + err);
     }
 }
 
-// Centraliza e redimensiona vídeo no canvas sem cortar
-function drawVideoNoCanvas() {
-    let vw = video.videoWidth;
-    let vh = video.videoHeight;
-    let cw = canvas.width;
-    let ch = canvas.height;
-
-    let videoRatio = vw / vh;
-    let canvasRatio = cw / ch;
-    let dw, dh, dx, dy;
-
-    if (videoRatio > canvasRatio) {
-        dh = ch;
-        dw = vh * videoRatio * (ch / vh);
-        dx = (cw - dw)/2;
-        dy = 0;
-    } else {
-        dw = cw;
-        dh = vw / videoRatio;
-        dx = 0;
-        dy = (ch - dh)/2;
+// Flash on/off
+document.getElementById("flash").onclick = async () => {
+    if (!track) return;
+    const capabilities = track.getCapabilities();
+    if (!capabilities.torch) {
+        alert("Seu dispositivo não suporta flash.");
+        return;
     }
-    return {dx, dy, dw, dh};
-}
+    flashAtivo = !flashAtivo;
+    await track.applyConstraints({ advanced: [{ torch: flashAtivo }] });
+    document.getElementById("flash").textContent = flashAtivo ? "⚡" : "⚡❌";
+};
 
-iniciarCamera();
-
+// Virar câmera
 document.getElementById("trocar").onclick = () => {
     usandoFrontal = !usandoFrontal;
     iniciarCamera();
 };
 
+// Função para desenhar vídeo proporcional, centralizando rosto na frontal
+function drawVideoProporcional() {
+    const vw = video.videoWidth;
+    const vh = video.videoHeight;
+    const cw = canvas.width;
+    const ch = canvas.height;
+    const videoRatio = vw / vh;
+    const canvasRatio = cw / ch;
+
+    let drawWidth, drawHeight, drawX, drawY;
+
+    if (videoRatio > canvasRatio) {
+        drawHeight = ch;
+        drawWidth = vh * videoRatio * (ch / vh);
+        drawX = (cw - drawWidth)/2;
+        drawY = 0;
+    } else {
+        drawWidth = cw;
+        drawHeight = cw / videoRatio;
+        drawX = 0;
+        drawY = usandoFrontal ? -(drawHeight - ch)/3 : (ch - drawHeight)/2;
+        // Ajuste para frontal: desloca parte superior para não cortar o rosto
+    }
+
+    return { drawX, drawY, drawWidth, drawHeight };
+}
+
+// Tirar foto
 document.getElementById("foto").onclick = () => {
     if (!video.videoWidth) {
         alert("Aguarde a câmera carregar...");
         return;
     }
 
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = "#000";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    const {dx, dy, dw, dh} = drawVideoNoCanvas();
+    const { drawX, drawY, drawWidth, drawHeight } = drawVideoProporcional();
 
     if (usandoFrontal) {
         ctx.save();
         ctx.scale(-1, 1);
-        ctx.drawImage(video, 0, 0, video.videoWidth, video.videoHeight, -canvas.width - dx, dy, dw, dh);
+        ctx.drawImage(video, 0, 0, video.videoWidth, video.videoHeight, -canvas.width - drawX, drawY, drawWidth, drawHeight);
         ctx.restore();
     } else {
-        ctx.drawImage(video, 0, 0, video.videoWidth, video.videoHeight, dx, dy, dw, dh);
+        ctx.drawImage(video, 0, 0, video.videoWidth, video.videoHeight, drawX, drawY, drawWidth, drawHeight);
     }
 
     ctx.drawImage(moldura, 0, 0, canvas.width, canvas.height);
 
     ultimaFoto = canvas.toDataURL("image/png");
 
-    // Preview
-    const preview = document.getElementById("preview-container");
-    const previewImg = document.getElementById("preview-img");
+    // Mostrar preview
     previewImg.src = ultimaFoto;
     preview.style.display = "flex";
 };
 
-document.getElementById("fechar-preview").onclick = () => {
-    document.getElementById("preview-container").style.display = "none";
+// Tirar outra
+document.getElementById("tirar-nova").onclick = () => {
+    preview.style.display = "none";
 };
 
-document.getElementById("salvar").onclick = () => {
-    if (!ultimaFoto) {
-        alert("Tire uma foto antes de salvar!");
-        return;
-    }
+// Salvar foto
+document.getElementById("salvar-preview").onclick = () => {
+    if (!ultimaFoto) return;
     const a = document.createElement("a");
     a.href = ultimaFoto;
     a.download = "foto-com-moldura.png";
