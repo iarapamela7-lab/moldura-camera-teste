@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  body { margin: 0; overflow: hidden; }
+  #camera { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; }
+  #moldura { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
+  #btns { position: fixed; bottom: 20px; width: 100%; text-align: center; }
+  button { padding: 12px 20px; margin: 5px; font-size: 16px; border-radius: 12px; }
+</style>
+</head>
+<body>
+
+<video id="camera" autoplay></video>
+<img id="moldura" src="moldura.png">
+
+<div id="btns">
+  <button onclick="trocar()">Trocar Câmera</button>
+  <button onclick="capturar()">Salvar Foto</button>
+</div>
+
+<canvas id="canvas" style="display:none;"></canvas>
+
+<script>
+let usandoFrontal = true;
+
+async function iniciarCamera() {
+    const modo = usandoFrontal ? "user" : "environment";
+    const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: modo }
+    });
+    document.getElementById("camera").srcObject = stream;
+}
+
+function trocar() {
+    usandoFrontal = !usandoFrontal;
+    iniciarCamera();
+}
+
+function capturar() {
+    const video = document.getElementById("camera");
+    const canvas = document.getElementById("canvas");
+    const moldura = document.getElementById("moldura");
+
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    ctx.drawImage(moldura, 0, 0, canvas.width, canvas.height);
+
+    const link = document.createElement("a");
+    link.download = "foto.png";
+    link.href = canvas.toDataURL("image/png");
+    link.click();
+}
+
+iniciarCamera();
+</script>
+
+</body>
+</html>
