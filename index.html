@@ -5,85 +5,17 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Foto com Moldura</title>
 <style>
-body {
-    margin: 0;
-    padding: 0;
-    background: #000;
-    font-family: Arial, sans-serif;
-    overflow: hidden;
-}
-#camera-container {
-    position: relative;
-    width: 100vw;
-    height: 100vh;
-    background: #000;
-}
-video {
-    position: absolute;
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-}
-#moldura {
-    position: absolute;
-    width: 100%;
-    height: 100%;
-    pointer-events: none;
-    object-fit: contain;
-}
-#botoes {
-    position: fixed;
-    bottom: 30px;
-    width: 100%;
-    display: flex;
-    justify-content: center;
-    gap: 25px;
-    z-index: 10;
-}
-button {
-    padding: 14px 18px;
-    font-size: 28px;
-    border: none;
-    border-radius: 50%;
-    background: rgba(255, 255, 255, 0.2);
-    backdrop-filter: blur(6px);
-    color: white;
-    font-weight: bold;
-    cursor: pointer;
-    transition: 0.2s;
-}
-button:hover {
-    background: rgba(255, 255, 255, 0.35);
-}
-#preview-container {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0,0,0,0.95);
-    display: none;
-    justify-content: center;
-    align-items: center;
-    z-index: 20;
-    flex-direction: column;
-}
-#preview-container img {
-    max-width: 90%;
-    max-height: 80%;
-    border: 4px solid white;
-    border-radius: 16px;
-    margin-bottom: 20px;
-}
-#preview-buttons {
-    display: flex;
-    gap: 30px;
-}
-#preview-buttons button {
-    border-radius: 14px;
-    padding: 12px 20px;
-    font-size: 20px;
-}
+body, html { margin:0; padding:0; height:100%; background:#000; font-family:Arial,sans-serif; overflow:hidden; }
+#camera-container { position:relative; width:100vw; height:100vh; background:#000; }
+video { position:absolute; width:100%; height:100%; object-fit:cover; }
+#moldura { position:absolute; width:100%; height:100%; pointer-events:none; object-fit:contain; }
+#botoes { position:fixed; bottom:30px; width:100%; display:flex; justify-content:center; gap:25px; z-index:10; }
+button { padding:14px; font-size:28px; border:none; border-radius:50%; background:rgba(255,255,255,0.2); backdrop-filter:blur(6px); color:white; font-weight:bold; cursor:pointer; transition:0.2s; }
+button:hover { background: rgba(255,255,255,0.35); }
+#preview-container { position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.95); display:none; justify-content:center; align-items:center; flex-direction:column; z-index:20; }
+#preview-container img { max-width:90%; max-height:80%; border:4px solid white; border-radius:16px; margin-bottom:20px; }
+#preview-buttons { display:flex; gap:30px; }
+#preview-buttons button { border-radius:14px; padding:12px 20px; font-size:20px; }
 </style>
 </head>
 <body>
@@ -123,14 +55,17 @@ let ultimaFoto = null;
 let flashAtivo = false;
 let track = null;
 
+// Detecta iOS
+const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+
 // Inicia câmera
 async function iniciarCamera() {
-    if (streamAtual) {
-        streamAtual.getTracks().forEach(t => t.stop());
-    }
+    if (streamAtual) streamAtual.getTracks().forEach(t => t.stop());
 
     const constraints = {
-        video: { facingMode: usandoFrontal ? "user" : "environment" },
+        video: {
+            facingMode: usandoFrontal ? "user" : "environment"
+        },
         audio: false
     };
 
@@ -139,12 +74,19 @@ async function iniciarCamera() {
         video.srcObject = streamAtual;
         track = streamAtual.getVideoTracks()[0];
         video.style.transform = usandoFrontal ? "scaleX(-1)" : "scaleX(1)";
+        flashAtivo = false;
+        updateFlashIcon();
     } catch (err) {
-        alert("Erro ao acessar câmera: " + err);
+        alert("Erro ao acessar a câmera: " + err);
     }
 }
 
-// Flash on/off
+// Atualiza ícone do flash
+function updateFlashIcon() {
+    document.getElementById("flash").textContent = flashAtivo ? "⚡" : "⚡❌";
+}
+
+// Flash (somente Android suporta torch frontal)
 document.getElementById("flash").onclick = async () => {
     if (!track) return;
     const capabilities = track.getCapabilities();
@@ -154,7 +96,7 @@ document.getElementById("flash").onclick = async () => {
     }
     flashAtivo = !flashAtivo;
     await track.applyConstraints({ advanced: [{ torch: flashAtivo }] });
-    document.getElementById("flash").textContent = flashAtivo ? "⚡" : "⚡❌";
+    updateFlashIcon();
 };
 
 // Virar câmera
@@ -163,7 +105,7 @@ document.getElementById("trocar").onclick = () => {
     iniciarCamera();
 };
 
-// Desenhar vídeo preenchendo canvas 9:16
+// Função para preencher canvas 9:16 sem deixar espaço preto
 function drawVideoProporcional() {
     const vw = video.videoWidth;
     const vh = video.videoHeight;
@@ -186,10 +128,7 @@ function drawVideoProporcional() {
         drawY = (ch - drawHeight)/2;
     }
 
-    // Ajuste para frontal: desloca levemente para cima para mostrar rosto
-    if (usandoFrontal) {
-        drawY -= drawHeight * 0.05;
-    }
+    if (usandoFrontal) drawY -= drawHeight * 0.05; // Ajusta para rosto
 
     return { drawX, drawY, drawWidth, drawHeight };
 }
@@ -199,7 +138,7 @@ document.getElementById("foto").onclick = () => {
     if (!video.videoWidth) return;
 
     ctx.fillStyle = "#000";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillRect(0,0,canvas.width,canvas.height);
 
     const { drawX, drawY, drawWidth, drawHeight } = drawVideoProporcional();
 
@@ -221,11 +160,9 @@ document.getElementById("foto").onclick = () => {
 };
 
 // Tirar outra
-document.getElementById("tirar-nova").onclick = () => {
-    preview.style.display = "none";
-};
+document.getElementById("tirar-nova").onclick = () => preview.style.display = "none";
 
-// Salvar foto
+// Salvar
 document.getElementById("salvar-preview").onclick = () => {
     if (!ultimaFoto) return;
     const a = document.createElement("a");
@@ -233,6 +170,9 @@ document.getElementById("salvar-preview").onclick = () => {
     a.download = "foto-com-moldura.png";
     a.click();
 };
+
+// Inicializa
+iniciarCamera();
 </script>
 
 </body>
