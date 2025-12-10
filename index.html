@@ -58,16 +58,11 @@ let track = null;
 // Detecta iOS
 const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
 
-// Inicia câmera
+// Inicializa câmera
 async function iniciarCamera() {
-    if (streamAtual) streamAtual.getTracks().forEach(t => t.stop());
+    if(streamAtual) streamAtual.getTracks().forEach(t=>t.stop());
 
-    const constraints = {
-        video: {
-            facingMode: usandoFrontal ? "user" : "environment"
-        },
-        audio: false
-    };
+    const constraints = { video: { facingMode: usandoFrontal ? "user" : "environment" }, audio:false };
 
     try {
         streamAtual = await navigator.mediaDevices.getUserMedia(constraints);
@@ -76,100 +71,82 @@ async function iniciarCamera() {
         video.style.transform = usandoFrontal ? "scaleX(-1)" : "scaleX(1)";
         flashAtivo = false;
         updateFlashIcon();
-    } catch (err) {
-        alert("Erro ao acessar a câmera: " + err);
+    } catch(err) {
+        alert("Erro ao acessar a câmera: "+err);
     }
 }
 
 // Atualiza ícone do flash
-function updateFlashIcon() {
-    document.getElementById("flash").textContent = flashAtivo ? "⚡" : "⚡❌";
-}
+function updateFlashIcon() { document.getElementById("flash").textContent = flashAtivo ? "⚡" : "⚡❌"; }
 
-// Flash (somente Android suporta torch frontal)
-document.getElementById("flash").onclick = async () => {
-    if (!track) return;
+// Flash (Android suporta torch)
+document.getElementById("flash").onclick = async ()=>{
+    if(!track) return;
     const capabilities = track.getCapabilities();
-    if (!capabilities.torch) {
-        alert("Seu dispositivo não suporta flash.");
-        return;
-    }
+    if(!capabilities.torch) { alert("Seu dispositivo não suporta flash."); return; }
     flashAtivo = !flashAtivo;
     await track.applyConstraints({ advanced: [{ torch: flashAtivo }] });
     updateFlashIcon();
-};
+}
 
 // Virar câmera
-document.getElementById("trocar").onclick = () => {
-    usandoFrontal = !usandoFrontal;
-    iniciarCamera();
-};
+document.getElementById("trocar").onclick = ()=>{ usandoFrontal=!usandoFrontal; iniciarCamera(); }
 
-// Função para preencher canvas 9:16 sem deixar espaço preto
-function drawVideoProporcional() {
+// Função para preencher canvas 9:16 mantendo proporção (cover)
+function drawVideoCover(){
     const vw = video.videoWidth;
     const vh = video.videoHeight;
     const cw = canvas.width;
     const ch = canvas.height;
-    const videoRatio = vw / vh;
-    const canvasRatio = cw / ch;
 
-    let drawWidth, drawHeight, drawX, drawY;
+    const scale = Math.max(cw/vw, ch/vh);
+    const drawWidth = vw*scale;
+    const drawHeight = vh*scale;
+    const drawX = (cw - drawWidth)/2;
+    let drawY = (ch - drawHeight)/2;
 
-    if (videoRatio > canvasRatio) {
-        drawHeight = ch;
-        drawWidth = vh * videoRatio;
-        drawX = (cw - drawWidth)/2;
-        drawY = 0;
-    } else {
-        drawWidth = cw;
-        drawHeight = cw / videoRatio;
-        drawX = 0;
-        drawY = (ch - drawHeight)/2;
-    }
-
-    if (usandoFrontal) drawY -= drawHeight * 0.05; // Ajusta para rosto
+    // Frontal: ajusta um pouco para mostrar rosto
+    if(usandoFrontal) drawY -= drawHeight*0.05;
 
     return { drawX, drawY, drawWidth, drawHeight };
 }
 
 // Tirar foto
-document.getElementById("foto").onclick = () => {
-    if (!video.videoWidth) return;
+document.getElementById("foto").onclick = ()=>{
+    if(!video.videoWidth) return;
 
-    ctx.fillStyle = "#000";
+    ctx.fillStyle="#000";
     ctx.fillRect(0,0,canvas.width,canvas.height);
 
-    const { drawX, drawY, drawWidth, drawHeight } = drawVideoProporcional();
+    const { drawX, drawY, drawWidth, drawHeight } = drawVideoCover();
 
-    if (usandoFrontal) {
+    if(usandoFrontal){
         ctx.save();
         ctx.scale(-1,1);
-        ctx.drawImage(video, 0,0,video.videoWidth,video.videoHeight, -canvas.width - drawX, drawY, drawWidth, drawHeight);
+        ctx.drawImage(video,0,0,video.videoWidth,video.videoHeight,-canvas.width - drawX,drawY,drawWidth,drawHeight);
         ctx.restore();
-    } else {
-        ctx.drawImage(video, 0,0,video.videoWidth,video.videoHeight, drawX, drawY, drawWidth, drawHeight);
+    }else{
+        ctx.drawImage(video,0,0,video.videoWidth,video.videoHeight,drawX,drawY,drawWidth,drawHeight);
     }
 
     ctx.drawImage(moldura,0,0,canvas.width,canvas.height);
 
     ultimaFoto = canvas.toDataURL("image/png");
-
     previewImg.src = ultimaFoto;
     preview.style.display = "flex";
-};
+}
 
 // Tirar outra
-document.getElementById("tirar-nova").onclick = () => preview.style.display = "none";
+document.getElementById("tirar-nova").onclick = ()=>preview.style.display="none";
 
 // Salvar
-document.getElementById("salvar-preview").onclick = () => {
-    if (!ultimaFoto) return;
-    const a = document.createElement("a");
-    a.href = ultimaFoto;
-    a.download = "foto-com-moldura.png";
+document.getElementById("salvar-preview").onclick = ()=>{
+    if(!ultimaFoto) return;
+    const a=document.createElement("a");
+    a.href=ultimaFoto;
+    a.download="foto-com-moldura.png";
     a.click();
-};
+}
 
 // Inicializa
 iniciarCamera();
